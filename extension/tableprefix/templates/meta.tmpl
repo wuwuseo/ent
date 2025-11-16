@@ -1,0 +1,132 @@
+{{/*
+Copyright 2019-present Facebook Inc. All rights reserved.
+This source code is licensed under the Apache 2.0 license found
+in the LICENSE file in the root directory of this source tree.
+*/}}
+
+{{/* gotype: entgo.io/ent/entc/gen.Type */}}
+
+{{ define "import" }}
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"sync"
+	"time"
+	{{- /* Ignore generating on graph templates (e.g. config.tmpl, client.tmpl, etc). */}}
+	{{- if ne $.Config.Package $.Package }}
+		"{{ $.Config.Package }}/predicate"
+		{{- if $.HasOneFieldID }}
+			{{- with $.ID.Type.PkgPath }}
+				{{- $name := $.ID.Type.PkgName }}
+				{{ if ne $name (base $.ID.Type.PkgPath) }}{{ $name }} {{ end }}"{{ . }}"
+			{{- end }}
+		{{- end }}
+		{{- /* Import external packages */}}
+        {{- template "import/types" $ }}
+	{{- end }}
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/schema/field"
+	{{- with $.Storage }}
+		{{- range $import := .Imports }}
+			"{{ $import }}"
+		{{- end }}
+	{{- end }}
+	{{- if and (hasField $ "Scope") ($.Scope.Imports) }}
+		{{- range $import := $.Scope.Imports }}
+			{{ $import.Alias }} "{{ $import.Path }}"
+		{{- end }}
+	{{- end }}
+	{{- template "import/additional" $ }}
+
+    {{- with extend $ "Scope" (dict "Imports" (list (dict "Alias" "orm" "Path" "github.com/wuwuseo/cmf/orm"))) }}
+        "github.com/wuwuseo/cmf/orm"
+    {{- end }}
+)
+{{ end }}
+
+{{/*
+覆盖 SQL 方言的元模板：
+- 从常量块移除 Table 定义
+- 在变量块中将 Table 定义为变量
+*/}}
+
+
+{{/* Constants needed for sql dialects. */}}
+{{ define "dialect/sql/meta/constants" }}
+        {{- range $t := $.RelatedTypes }}
+                {{- $withEID := $.HasCompositeID }}
+                {{- if and (not $withEID) $t.HasOneFieldID }}
+                        {{- if ne $t.ID.StorageKey $.ID.StorageKey }}{{ $withEID = true }}{{ end }}
+                {{- end }}
+                {{- if $withEID }}
+                        // {{ $t.Name }}FieldID holds the string denoting the ID field of the {{ $t.Name }}.
+                        {{ $t.Name }}FieldID = "{{ $t.ID.StorageKey }}"
+                {{- end }}
+        {{- end }}
+        {{- /* 注意：移除了 Table 常量定义，改由变量块提供 */}}
+        {{- range $e := $.Edges }}
+                // {{ $e.TableConstant }} is the table that holds the {{ $e.Name }} relation/edge.
+                {{- if $e.M2M }} The primary key declared below.{{ end }}
+                {{ $e.TableConstant }} = "{{ $e.Rel.Table }}"
+                {{- if ne $.Table $e.Type.Table }}
+                        // {{ $e.InverseTableConstant }} is the table name for the {{ $e.Type.Name }} entity.
+                        // It exists in this package in order to avoid circular dependency with the "{{ $e.Type.Package }}" package.
+                        {{ $e.InverseTableConstant }} = "{{ $e.Type.Table }}"
+                {{- end }}
+                {{- if not $e.M2M }}
+                        // {{ $e.ColumnConstant }} is the table column denoting the {{ $e.Name }} relation/edge.
+                        {{ $e.ColumnConstant }} = "{{ $e.Rel.Column }}"
+                {{- end }}
+        {{- end }}
+        {{- with $tmpls := matchTemplate "dialect/sql/meta/constants/*" }}
+                {{- range $tmpl := $tmpls }}
+                        {{- xtemplate $tmpl $ }}
+                {{- end }}
+        {{- end }}
+{{ end }}
+
+{{/* Variables needed for sql dialects. */}}
+{{ define "dialect/sql/meta/variables" }}
+        // Table holds the table name of the {{ lower $.Name }} in the database.
+        var TablePrefix = orm.GetTablePrefix()
+       
+        var Table = TablePrefix + "{{ $.Table }}"
+
+        // Columns holds all SQL columns for {{ lower $.Name }} fields.
+        var Columns = []string{
+                {{- if $.HasOneFieldID }}
+                        {{ $.ID.Constant }},
+                {{- end }}
+                {{- range $f := $.Fields }}
+                        {{- if not $f.IsDeprecated }}
+                                {{ $f.Constant }},
+                        {{- end }}
+                {{- end }}
+        }
+        {{/* If any of the edges owns a foreign-key */}}
+        {{ with $.UnexportedForeignKeys }}
+                // ForeignKeys holds the SQL foreign-keys that are owned by the "{{ $.Table }}"
+                // table and are not defined as standalone fields in the schema.
+                var ForeignKeys = []string{
+                        {{- range $fk := . }}
+                                "{{ $fk.Edge.Rel.Column }}",
+                        {{- end }}
+                }
+        {{ end }}
+
+        {{ with $.NumM2M }}
+                var (
+                        {{- range $e := $.Edges }}
+                                {{- if $e.M2M }}
+                                        // {{ $e.PKConstant }} and {{ $e.ColumnConstant }}2 are the table columns denoting the
+                                        // primary key for the {{ $e.Name }} relation (M2M).
+                                        {{ $e.PKConstant }} = []string{"{{ index $e.Rel.Columns 0 }}", "{{ index $e.Rel.Columns 1 }}"}
+                                {{- end }}
+                        {{- end }}
+                )
+        {{ end }}
+{{ end }}
