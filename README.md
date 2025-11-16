@@ -12,12 +12,35 @@
 - 🤝 **扩展兼容**：可与其他 Ent 扩展同时使用
 - 📦 **嵌入式模板**：使用 Go embed 特性，无需担心模板文件路径问题
 
+## ⚙️ 模板覆盖说明
+
+- 覆盖 `meta.tmpl`（SQL 方言）：
+  - 将实体包中的 `Table` 由常量改为变量：`var Table = TablePrefix + "<原表名>"`
+  - 在生成文件中引入 `github.com/wuwuseo/cmf/orm` 并定义 `var TablePrefix = orm.GetTablePrefix()`
+- 覆盖 `meta/order`（SQL 方言）：
+  - 邻接查询与排序步骤使用前缀化表名，确保跨实体关系时表名一致
+- 覆盖 `migrate/schema.tmpl`：
+  - 迁移生成的 `schema.Table{Name: ...}` 使用前缀化表名，`Tables` 列表保持一致
+
+> 注意：生成的代码会导入 `github.com/wuwuseo/cmf/orm`，请确保该依赖在你的 `go.mod` 中（见安装章节）。
+
+## 🛠️ 命令行用法
+
+- 如果不通过扩展注册，也可以使用 CLI 覆盖模板：
+
+```bash
+ent generate --template ./extension/tableprefix/templates ./ent/schema
+```
+
+> 等价于注册扩展后自动加载模板；两种方式选其一即可。
+
 ## 📦 安装
 
 使用 `go get` 命令安装：
 
 ```bash
-go get github.com/wuwuseo/ent
+go get github.com/wuwuseo/ent/extension/tableprefix
+go get github.com/wuwuseo/cmf/orm
 ```
 
 ## 🚀 快速开始
@@ -36,12 +59,12 @@ import (
     
     "entgo.io/ent/entc"
     "entgo.io/ent/entc/gen"
-    "github.com/wuwuseo/ent"
+    "github.com/wuwuseo/ent/extension/tableprefix"
 )
 
 func main() {
     // 创建表前缀扩展，为所有表添加 "myapp_" 前缀
-    ext, err := ent.NewTablePrefix("myapp_")
+    ext, err := tableprefix.NewTablePrefix("myapp_")
     if err != nil {
         log.Fatalf("创建表前缀扩展失败: %v", err)
     }
@@ -74,7 +97,7 @@ go generate ./ent
 
 ```go
 // 为所有表添加固定前缀
-ext, err := ent.NewTablePrefix("myapp_")
+ext, err := tableprefix.NewTablePrefix("myapp_")
 if err != nil {
     log.Fatalf("创建扩展失败: %v", err)
 }
@@ -106,7 +129,7 @@ if prefix == "" {
     }
 }
 
-ext, err := ent.NewTablePrefix(prefix)
+ext, err := tableprefix.NewTablePrefix(prefix)
 if err != nil {
     log.Fatalf("创建扩展失败: %v", err)
 }
@@ -133,7 +156,7 @@ $env:TABLE_PREFIX="dev_"
 
 ```go
 // 创建表前缀扩展
-tablePrefixExt, err := ent.NewTablePrefix("app_")
+tablePrefixExt, err := tableprefix.NewTablePrefix("app_")
 if err != nil {
     log.Fatalf("创建扩展失败: %v", err)
 }
@@ -158,7 +181,7 @@ err = entc.Generate("./schema", &gen.Config{
 
 ```go
 // 传入空字符串，不修改原始表名
-ext, err := ent.NewTablePrefix("")
+ext, err := tableprefix.NewTablePrefix("")
 if err != nil {
     log.Fatalf("创建扩展失败: %v", err)
 }
@@ -172,7 +195,7 @@ if err != nil {
 tenantID := "tenant123"
 prefix := fmt.Sprintf("%s_", tenantID)
 
-ext, err := ent.NewTablePrefix(prefix)
+ext, err := tableprefix.NewTablePrefix(prefix)
 if err != nil {
     log.Fatalf("创建扩展失败: %v", err)
 }
