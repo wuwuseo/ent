@@ -31,7 +31,35 @@ import (
 )
 
 func main() {
+    // 动态表前缀  二进制 运行时 从 orm.GetTablePrefix() 读取
     ext, err := tableprefix.NewTablePrefix()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 根据你的项目实际路径调整 Target 与 Package
+    if err := entc.Generate("./schema", &gen.Config{
+        Target:  "./ent",
+        //Package: "your/module/ent",
+    }, entc.Extensions(ext)); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+生成式示例：
+```go
+package main
+
+import (
+    "log"
+    "entgo.io/ent/entc"
+    "entgo.io/ent/entc/gen"
+    "github.com/wuwuseo/ent/extension/tableprefix"
+)
+
+func main() {
+    // 生成时候 固定的表前缀   ent 通过配置生产固定化的表前缀 更改需要重新生产 ent orm 代码
+    ext, err := tableprefix.NewTablePrefixGenerate("prefix_")
     if err != nil {
         log.Fatal(err)
     }
