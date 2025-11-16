@@ -39,7 +39,7 @@ func main() {
     // 根据你的项目实际路径调整 Target 与 Package
     if err := entc.Generate("./schema", &gen.Config{
         Target:  "./ent",
-        Package: "your/module/ent",
+        //Package: "your/module/ent",
     }, entc.Extensions(ext)); err != nil {
         log.Fatal(err)
     }
