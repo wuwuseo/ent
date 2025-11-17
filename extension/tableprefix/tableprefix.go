@@ -26,7 +26,7 @@ func NewTablePrefix() (*TablePrefixExtension, error) {
 func (e *TablePrefixExtension) Templates() []*gen.Template {
 	// 创建模板并解析所有扩展模板文件
 	tmpl := gen.MustParse(
-		gen.NewTemplate("").
+		gen.NewTemplate("schema").
 			ParseFS(templates, "templates/*.tmpl"),
 	)
 
@@ -40,16 +40,6 @@ type TablePrefixGenerateExtension struct {
 
 func NewTablePrefixGenerate(prefix string) (*TablePrefixGenerateExtension, error) {
 	return &TablePrefixGenerateExtension{prefix: prefix}, nil
-}
-
-func (e *TablePrefixGenerateExtension) Templates() []*gen.Template {
-	// 创建模板并解析所有扩展模板文件
-	tmpl := gen.MustParse(
-		gen.NewTemplate("schema").
-			ParseFS(templates, "templates/schema.tmpl"),
-	)
-
-	return []*gen.Template{tmpl}
 }
 
 func Hooks(prefix string) []gen.Hook {
