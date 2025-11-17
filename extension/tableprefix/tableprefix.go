@@ -26,8 +26,8 @@ func NewTablePrefix() (*TablePrefixExtension, error) {
 func (e *TablePrefixExtension) Templates() []*gen.Template {
 	// 创建模板并解析所有扩展模板文件
 	tmpl := gen.MustParse(
-		gen.NewTemplate("schema").
-			ParseFS(templates, "templates/*.tmpl"),
+		gen.NewTemplate("").
+			ParseFS(templates, "templates/dynamic/*.tmpl"),
 	)
 
 	return []*gen.Template{tmpl}
@@ -42,10 +42,20 @@ func NewTablePrefixGenerate(prefix string) (*TablePrefixGenerateExtension, error
 	return &TablePrefixGenerateExtension{prefix: prefix}, nil
 }
 
-func Hooks(prefix string) []gen.Hook {
+func (e *TablePrefixGenerateExtension) Hooks() []gen.Hook {
 	return []gen.Hook{
-		AddTablePrefix(prefix),
+		e.AddTablePrefix(e.prefix),
 	}
+}
+
+func (e *TablePrefixGenerateExtension) Templates() []*gen.Template {
+	// 创建模板并解析所有扩展模板文件
+	tmpl := gen.MustParse(
+		gen.NewTemplate("").
+			ParseFS(templates, "templates/gen/*.tmpl"),
+	)
+
+	return []*gen.Template{tmpl}
 }
 
 func AddTablePrefix(prefix string) gen.Hook {
