@@ -2,13 +2,14 @@ package tableprefix
 
 import (
 	"embed"
+	"strings"
 
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 )
 
-//go:embed templates/*.tmpl
+//go:embed templates/dynamic/*.tmpl
 var templates embed.FS
 
 // TablePrefixExtension 是一个 Ent 扩展，用于为生成的数据库表名添加统一前缀
@@ -33,63 +34,47 @@ func (e *TablePrefixExtension) Templates() []*gen.Template {
 	return []*gen.Template{tmpl}
 }
 
-type TablePrefixGenerateExtension struct {
+type TablePrefixGenExtension struct {
 	entc.DefaultExtension
-	prefix string
+	Prefix string
 }
 
-func NewTablePrefixGenerate(prefix string) (*TablePrefixGenerateExtension, error) {
-	return &TablePrefixGenerateExtension{prefix: prefix}, nil
+func NewTablePrefixGen(prefix string) (*TablePrefixGenExtension, error) {
+	return &TablePrefixGenExtension{Prefix: prefix}, nil
 }
 
-func (e *TablePrefixGenerateExtension) Hooks() []gen.Hook {
+func (e *TablePrefixGenExtension) Hooks() []gen.Hook {
 	return []gen.Hook{
-		e.AddTablePrefix(e.prefix),
+		e.generateTablePrefix(e.Prefix),
 	}
 }
 
-func (e *TablePrefixGenerateExtension) Templates() []*gen.Template {
-	// 创建模板并解析所有扩展模板文件
-	tmpl := gen.MustParse(
-		gen.NewTemplate("").
-			ParseFS(templates, "templates/gen/*.tmpl"),
-	)
-
-	return []*gen.Template{tmpl}
+func (e *TablePrefixGenExtension) generateTablePrefix(prefix string) gen.Hook {
+	return AddTablePrefix(prefix)
 }
 
 func AddTablePrefix(prefix string) gen.Hook {
 	return func(next gen.Generator) gen.Generator {
 		return gen.GenerateFunc(func(g *gen.Graph) error {
+
 			for _, n := range g.Nodes {
-				// 获取现有 entsql 注解（如果有）
-				var sqlAnnot *entsql.Annotation
-				annotName := (&entsql.Annotation{}).Name() // 先获取注解名称
-
-				if n.Annotations != nil {
-					if annot, ok := n.Annotations[annotName]; ok {
-						if a, ok := annot.(*entsql.Annotation); ok {
-							sqlAnnot = a
-						}
-					}
-				}
-
-				if sqlAnnot == nil {
-					sqlAnnot = &entsql.Annotation{}
-				}
-
-				sqlAnnot.Table = prefix + n.Table()
-
 				if n.Annotations == nil {
-					n.Annotations = gen.Annotations{}
+					n.Annotations = make(map[string]any)
 				}
-				n.Annotations[sqlAnnot.Name()] = sqlAnnot
+
+				ann := &entsql.Annotation{}
+				if a := n.EntSQL(); a != nil {
+					*ann = *a
+				}
+				if ann.Table == "" {
+					ann.Table = prefix + strings.ToLower(n.Name)
+				}
+				n.Annotations[ann.Name()] = ann
 			}
-			return next.Generate(g)
+			if err := next.Generate(g); err != nil {
+				return err
+			}
+			return nil
 		})
 	}
-}
-
-func (e *TablePrefixGenerateExtension) AddTablePrefix(prefix string) gen.Hook {
-	return AddTablePrefix(prefix)
 }
